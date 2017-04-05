@@ -1,0 +1,49 @@
+# Created with FME Version: FME(R) 2016.1.3.0 20161103 - Build 16709 - WIN64
+newmtl fx-i-3
+Ka 1 1 1
+Ks 0.333333 0.333333 0.333333
+Tr 1
+map_Kd ./materials_textures/fx-i-3.jpg
+
+newmtl fx-i-2
+Ka 1 1 1
+Ks 0.333333 0.333333 0.333333
+Tr 1
+map_Kd ./materials_textures/fx-i-2.jpg
+
+newmtl fx-i-4
+Ka 1 1 1
+Ks 0.333333 0.333333 0.333333
+Tr 1
+map_Kd ./materials_textures/fx-i-4.jpg
+
+newmtl fx-i-5
+Ka 1 1 1
+Ks 0.333333 0.333333 0.333333
+Tr 1
+map_Kd ./materials_textures/fx-i-5.jpg
+
+newmtl fx-i-0
+Ka 1 1 1
+Ks 0.333333 0.333333 0.333333
+Tr 1
+map_Kd ./materials_textures/fx-i-0.jpg
+
+newmtl fx-i-7
+Ka 1 1 1
+Ks 0.333333 0.333333 0.333333
+Tr 1
+map_Kd ./materials_textures/fx-i-7.jpg
+
+newmtl fx-i-6
+Ka 1 1 1
+Ks 0.333333 0.333333 0.333333
+Tr 1
+map_Kd ./materials_textures/fx-i-6.jpg
+
+newmtl fx-i-1
+Ka 1 1 1
+Ks 0.333333 0.333333 0.333333
+Tr 1
+map_Kd ./materials_textures/fx-i-1.jpg
+
