@@ -1,3 +1,5 @@
+#ifndef OBJLOADER_H
+#define OBJLOADER_H
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <iostream>
 #include <fstream>
@@ -72,16 +74,7 @@ struct vec2{
 std::vector<vec3 > temp_vertices;
 std::vector<vec2 > temp_uvs;
 std::vector<vec3 > temp_normals;
-
-
-string gen_key_texture(int v1,int v2,int v3) {
-  string s1 = to_string(v1);
-  string s2 = std::to_string(v2);
-  string s3 = std::to_string(v3);
-  return (s1 + " " + s2 + " " + s3);
-}
-
-
+#include "textureoperator.hpp"
 
 bool OBJtoPwn(std::vector< vec3 > vertice,std::vector<vec3> normals, Pwn_vector & points)
 {
@@ -98,7 +91,7 @@ bool OBJtoPwn(std::vector< vec3 > vertice,std::vector<vec3> normals, Pwn_vector 
     return true;
 }
 
-Pwn_vector loadOBJ(const char* path,std::vector< unsigned int > & vertexIndices,std::vector< unsigned int > & uvIndices,std::vector< unsigned int > & normalIndices,std::vector<vec2 > &out_uvs,std::map <string,string> &texture_map){
+Pwn_vector loadOBJ(const char* path,std::vector< unsigned int > & vertexIndices,std::vector< unsigned int > & uvIndices,std::vector< unsigned int > & normalIndices,std::vector<vec2 > &out_uvs,std::vector <string> &texture_map){
     // vertexIndices:  Indices of vertices for faces
     // uvIndices: Indices of pixels in images
     // normalIndices:  empty of files without normals
@@ -157,12 +150,13 @@ Pwn_vector loadOBJ(const char* path,std::vector< unsigned int > & vertexIndices,
                 /*int matches = fscanf(file, "%d/%d/%d %d/%d/%d %d/%d/%d\n", &vertexIndex[0], &uvIndex[0],&normalIndex[0], &vertexIndex[1], &uvIndex[1],&normalIndex[1] ,&vertexIndex[2], &uvIndex[2],&normalIndex[2]);
                 if (matches != 9){
                     printf("File can't be read by our simple parser : ( Try exporting with other options\n");
-                    return false;
+                    return false;x
                     }*/
                 int matches = fscanf(file, "%d/%d %d/%d %d/%d\n", &vertexIndex[0], &uvIndex[0],&vertexIndex[1], &uvIndex[1],&vertexIndex[2], &uvIndex[2]);
-                if (matches != 6){
+                if (matches != 6)
+                {
                     printf("File can't be read by our simple parser : ( Try exporting with other options\n");
-                    }
+                }
                 vertexIndices.push_back(vertexIndex[0]);
                 vertexIndices.push_back(vertexIndex[1]);
                 vertexIndices.push_back(vertexIndex[2]);
@@ -175,8 +169,7 @@ Pwn_vector loadOBJ(const char* path,std::vector< unsigned int > & vertexIndices,
                 */
                 if(texture_index.empty()==false)
                 {
-                    string key=gen_key_texture(vertexIndex[0],vertexIndex[1],vertexIndex[2]);
-                    texture_map[key]=texture_index;
+                    texture_map.push_back(texture_index);
                 }
             }
             // if there is already normal in the file, just combine vertice information and normal information, transfer the format to CGAL format
@@ -201,8 +194,7 @@ Pwn_vector loadOBJ(const char* path,std::vector< unsigned int > & vertexIndices,
                 normalIndices.push_back(normalIndex[2]);*/
                 if(texture_index.empty()==false)
                 {
-                    string key=gen_key_texture(vertexIndex[0],vertexIndex[1],vertexIndex[2]);
-                    texture_map[key]=texture_index;
+                    texture_map.push_back(texture_index);
                 }
             }
 
@@ -291,7 +283,7 @@ bool writePlanes(const char* path,std::vector <vec3 >  in_vertices){
 }
 
 
-bool writeOBJ(const char* path,std::vector< unsigned int >  vertexIndices,std::vector< unsigned int > uvIndices,std::vector< unsigned int > normalIndices,Pwn_vector points,std::vector <vec2 > uvs,std::vector<int> face_classification,int* vertex_snapped,int *vertex_region,map<string,string> texture_map){
+bool writeOBJ(const char* path,std::vector< unsigned int >  vertexIndices,std::vector< unsigned int > uvIndices,std::vector< unsigned int > normalIndices,Pwn_vector points,std::vector <vec2 > uvs,std::vector<int> face_classification,int* vertex_snapped,int *vertex_region,vector<string> texture_map){
     FILE *file= fopen(path, "w+");
     fprintf(file,"%s\n","# Snapped mesh by CGAL ransac algorithm");
     fprintf(file,"%s\n","# COORDINATE_SYSTEM:");
@@ -374,16 +366,14 @@ bool writeOBJ(const char* path,std::vector< unsigned int >  vertexIndices,std::v
         int vertex1=vertexIndices.at(i);
         int vertex2=vertexIndices.at(i+1);
         int vertex3=vertexIndices.at(i+2);
-        /*string texture_key=gen_key_texture(vertex1,vertex2,vertex3);
-        if(texture_map.find(texture_key)!=texture_map.end())
-        {
-            string texture_index= texture_map[texture_key];
+
+            /*string texture_index= texture_map.at(face_index);
             if(texture_index!=previous_texture_index)
             {
                 fprintf(file,"%s %s\n","usemtl",texture_index.c_str());
                 previous_texture_index=texture_index;
-            }
-        }*/
+            }*/
+
         fprintf(file,"%s %d/%d %d/%d %d/%d \n","f",
                 vertex1,uvIndices.at(i),
                 vertex2,uvIndices.at(i+1),
@@ -393,7 +383,7 @@ bool writeOBJ(const char* path,std::vector< unsigned int >  vertexIndices,std::v
 }
 
 
-bool writeOBJtest(const char* path,std::vector< unsigned int >  vertexIndices,std::vector< unsigned int > uvIndices,std::vector< unsigned int > normalIndices,Pwn_vector points,std::vector <vec2 > uvs,map<string,string> texture_map){
+bool writeOBJtest(const char* path,std::vector< unsigned int >  vertexIndices,std::vector< unsigned int > uvIndices,std::vector< unsigned int > normalIndices,Pwn_vector points,std::vector <vec2 > uvs,vector<string> texture_map){
     FILE *file= fopen(path, "w+");
     fprintf(file,"%s\n","# Snapped mesh by CGAL ransac algorithm");
     fprintf(file,"%s\n","# COORDINATE_SYSTEM:");
@@ -416,25 +406,22 @@ bool writeOBJtest(const char* path,std::vector< unsigned int >  vertexIndices,st
     string previous_texture_index="";
     for (int i=0; i<vertexIndices.size()-3;i+=3)
     {
-
+        int face_index=i/3;
         int v1=vertexIndices.at(i)-1;
         int v2=vertexIndices.at(i+1)-1;
         int v3=vertexIndices.at(i+2)-1;
         if (points.at(v1).first.x()>435&&points.at(v1).first.x()<460&&points.at(v1).first.y()>6530&&points.at(v1).first.y()<6550&&points.at(v1).first.z()>1)
         {
+
             int vertex1=vertexIndices.at(i);
             int vertex2=vertexIndices.at(i+1);
             int vertex3=vertexIndices.at(i+2);
-            string texture_key=gen_key_texture(vertex1,vertex2,vertex3);
-            if(texture_map.find(texture_key)!=texture_map.end())
+            string texture_index= texture_map.at(face_index);
+            if(texture_index!=previous_texture_index)
             {
-                string texture_index= texture_map[texture_key];
-                if(texture_index!=previous_texture_index)
-                {
-                    fprintf(file,"%s %s\n","usemtl",texture_index.c_str());
-                    previous_texture_index=texture_index;
-                }
-            }
+                 fprintf(file,"%s %s\n","usemtl",texture_index.c_str());
+                 previous_texture_index=texture_index;
+             }
             fprintf(file,"%s %d/%d %d/%d %d/%d \n","f",
                     vertex1,uvIndices.at(i),
                     vertex2,uvIndices.at(i+1),
@@ -456,3 +443,73 @@ bool outputVertices(const char* path,Pwn_vector points,int* vertex_snapped)
 
     return true;
 }
+
+string gen_key_texture(int R,int G, int B) {
+  string r = to_string(R);
+  string g = std::to_string(G);
+  string b = std::to_string(B);
+  return (r + " " + g + " " + b);
+}
+
+bool writeTexuredVertices(string filename,Pwn_vector points,map<int,RGB> texture )
+{
+    map<string,RGB> texturemap;
+    string filepath1="data/"+filename+".mtl";
+    const char* mtlpath=filepath1.c_str();
+    string filepath2="data/"+filename+".obj";
+    const char* objpath=filepath2.c_str();
+    FILE *file= fopen(mtlpath, "w+");
+    fprintf(file,"%s","newmtl untextured\n");
+    fprintf(file,"%s %.4f %.4f %.4f\n","Ka",1.0000,1.0000,1.0000);
+    fprintf(file,"%s %.4f %.4f %.4f\n","Kd",1.0000,1.0000,1.0000);
+    fprintf(file,"%s %.4f %.4f %.4f\n","Ks",1.0000,1.0000,1.0000);
+    fprintf(file,"%s %i\n","illum",2);
+    fprintf(file,"%s %.4f\n","Ns",60.0000);
+    fprintf(file,"\n");
+    for(int i=0;i<points.size();i++)
+    {
+        if(texture.count(i)==1)
+        {
+
+            int R=(double)texture[i].R;
+            int G=(double)texture[i].G;
+            int B=(double)texture[i].B;
+            string key=gen_key_texture(R,G,B);
+            if(texturemap.count(key)==0)
+            {
+                RGB rgbvalue(R,G,B);
+                texturemap[key]=rgbvalue;
+                double r=(double)texture[i].R/255;
+                double g=(double)texture[i].G/255;
+                double b=(double)texture[i].B/255;
+                fprintf(file,"%s%i%i%i\n","newmtl rgb",R,G,B);
+                fprintf(file,"%s %.4f %.4f %.4f\n","Ka",r,g,b);
+                fprintf(file,"%s %.4f %.4f %.4f\n","Kd",r,g,b);
+                fprintf(file,"%s %.4f %.4f %.4f\n","Ks",r,g,b);
+                fprintf(file,"%s %i\n","illum",2);
+                fprintf(file,"%s %.4f\n","Ns",60.0000);
+                fprintf(file,"\n");
+
+            }
+        }
+    }
+    fclose(file);
+    FILE *objfile= fopen(objpath, "w+");
+    fprintf(file,"%s ./%s%s\n","mtllib",filename.c_str(),".mtl");
+    for (int i=0; i<points.size();i++)
+    {
+
+        if(texture.count(i)==1)
+        {
+            int R=(double)texture[i].R;
+            int G=(double)texture[i].G;
+            int B=(double)texture[i].B;
+            fprintf(file,"%s%i%i%i\n","usemtl rgb",R,G,B);
+            fprintf(objfile,"%s %.6f %.6f %.6f\n","v",points.at(i).first.x(),points.at(i).first.y(),points.at(i).first.z());
+        }
+
+    }
+    fclose(objfile);
+    return true;
+}
+#endif

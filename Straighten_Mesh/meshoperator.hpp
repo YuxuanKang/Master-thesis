@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <math.h>
 #include "utilities.hpp"
+#include "textureoperator.hpp"
 typedef CGAL::Exact_predicates_inexact_constructions_kernel  Kernel;
 typedef std::pair<Kernel::Point_3, Kernel::Vector_3>         Point_with_normal;
 typedef Kernel::FT                                           FT;
@@ -129,31 +130,29 @@ std::vector<int> * getTopology(int point_num,std::vector< unsigned int >  vertex
    }
     return neighbor;
 }
-std::vector< vector<int> > RegionGrow(Pwn_vector points,int num_planes,int* vertex_snapped,int* vertex_region,std::vector<int> &neighbor_plane,std::vector<int> * neighbor,map<string,int> out_map, bool small_scale=false)
+std::vector< Pwn_vector > RegionGrow(Pwn_vector allpoints,Pwn_vector points,int* vertex_snapped,int* vertex_region,std::vector<int> * neighbor,map<string,int> out_map,map<int,RGB> texturemap)
 {
     std::vector<int> unsnapped;
-    std::vector< vector<int> > region_segments;
-    int *segment_neighbor;
-    segment_neighbor=new int[num_planes];
-    // Record which points are not snapped into the vector
-    if(small_scale==false){
+    std::vector< Pwn_vector > region_segments;
+    bool *in_segment;
+    in_segment=new bool[allpoints.size()];
+
+    for(int i=0;i<allpoints.size();i++)
+    {
+        in_segment[i]=false;
+    }
+   // Record which points are not snapped into the vector
+
         for(int i=0;i<points.size();i++)
         {
             string key=gen_key_bucket(points.at(i).first);
             int original_index=out_map[key];
             if (vertex_snapped[original_index]==-1){
                 unsnapped.push_back(original_index);
+                in_segment[original_index]=true;
             }
         }
-    }
-    else{
-        for(int i=0;i<points.size();i++)
-        {
-            string key=gen_key_bucket(points.at(i).first);
-            int original_index=out_map[key];
-            unsnapped.push_back(original_index);
-        }
-    }
+
     // ------------------------------------------------Region growing--------------------------------------------
     int region_index=0;
      while(unsnapped.empty()==false)
@@ -161,13 +160,114 @@ std::vector< vector<int> > RegionGrow(Pwn_vector points,int num_planes,int* vert
         int seed=unsnapped.back();
         unsnapped.pop_back();
         std::vector<int> region;
+        Pwn_vector region_points;
         if (neighbor[seed].empty()==true)
         {
             continue;
         }
         region.push_back(seed);
+        region_points.push_back(allpoints.at(seed));
+        in_segment[seed]==false;
+        //RGB meanRGB(texturemap[seed]);
+        //Kernel::Vector_3 mean_normal=allpoints.at(seed).second;
+
+        std::vector<int> ::iterator itr=region.begin();
+        for (int pt_index=0;pt_index<region.size();pt_index++)
+        {
+            int index= region.at(pt_index);
+            for(int i=0;i<neighbor[index].size();i++)
+            {
+                int neighbor_index=neighbor[index].at(i);
+                if(in_segment[neighbor_index]==true&&std::find(region.begin(), region.end(), neighbor_index)==region.end()&&
+                        vertex_snapped[neighbor_index]==-1)
+                {
+                    Kernel::Vector_3 normal=allpoints.at(index).second;
+                    Kernel::Vector_3 normal_neighbor=allpoints.at(neighbor_index).second;
+                    //double dot_product=mean_normal*normal_neighbor;
+                    double dot_product=normal*normal_neighbor;
+                    RGB p1=texturemap[index];
+                    RGB p2=texturemap[neighbor_index];
+                    //RGB p1=meanRGB;
+                    //double RGBdis=RGBdisdance(p1,p2);
+                    int Rdis= abs(p1.R-p2.R);
+                    int Gdis= abs(p1.G-p2.G);
+                    int Bdis= abs(p1.B-p2.B);
+                    int RGBdis=Rdis+Gdis+Bdis;
+                    if(dot_product>0.98)
+                    //if(RGBdis<200)
+                    {
+                        region.push_back(neighbor_index);
+                        region_points.push_back(allpoints.at(neighbor_index));
+                        vertex_region[neighbor_index]=region_index;
+                        unsnapped.erase(std::remove(unsnapped.begin(), unsnapped.end(), neighbor_index), unsnapped.end());
+                        //meanRGB=RGB((meanRGB.R+p2.R)/2,(meanRGB.G+p2.G)/2,(meanRGB.B+p2.B)/2);
+                        in_segment[neighbor_index]=false;
+                        /*mean_normal= mean_normal+normal_neighbor;
+                        mean_normal=mean_normal/mean_normal.squared_length();*/
+
+                    }
+                    else if(RGBdis<20)
+                    {
+                        region.push_back(neighbor_index);
+                        region_points.push_back(allpoints.at(neighbor_index));
+                        vertex_region[neighbor_index]=region_index;
+                        unsnapped.erase(std::remove(unsnapped.begin(), unsnapped.end(), neighbor_index), unsnapped.end());
+                         //meanRGB=RGB((meanRGB.R+p2.R)/2,(meanRGB.G+p2.G)/2,(meanRGB.B+p2.B)/2);
+                         in_segment[neighbor_index]=false;
+                        /*mean_normal= mean_normal+normal_neighbor;
+                        mean_normal=mean_normal/mean_normal.squared_length();*/
+                    }
+                }
+
+
+            }
+           itr++;
+        }
+        // Check if all edges are snapped to the same plane, if so, store the plane id
+        region_segments.push_back(region_points);
+        region_index++;
+
+
+    }
+    return region_segments;
+
+}
+
+std::vector<Pwn_vector> SplitCluster(Pwn_vector points,int num_planes,int* vertex_snapped,int* vertex_region,std::vector<int> &neighbor_plane,std::vector<int> * neighbor,map<string,int> out_map)
+{
+    std::vector<int> unsnapped;
+    std::vector< Pwn_vector > region_segments;
+    int *segment_neighbor;
+    segment_neighbor=new int[num_planes];
+    bool *in_segment;
+    in_segment=new bool[points.size()];
+    for(int i=0;i<points.size();i++)
+    {
+        in_segment[i]=false;
+    }
+    // Record which points are not snapped into the vector
+        for(int i=0;i<points.size();i++)
+        {
+            string key=gen_key_bucket(points.at(i).first);
+            int original_index=out_map[key];
+            unsnapped.push_back(original_index);
+            in_segment[original_index]=true;
+        }
+    // ------------------------------------------------Region growing--------------------------------------------
+    int region_index=0;
+     while(unsnapped.empty()==false)
+     {
+        int seed=unsnapped.back();
+        unsnapped.pop_back();
+        std::vector<int> region;
+        Pwn_vector region_points;
+        if (neighbor[seed].empty()==true)
+        {
+            continue;
+        }
+        region.push_back(seed);
+        region_points.push_back(points.at(seed));
         int region_plane=vertex_snapped[seed];
-        //Kernel::Vector_3 mean_normal(points.at(seed).second.x(),points.at(seed).second.y(),points.at(seed).second.z());
         int edgepoint=0;
         for (int i=0;i<num_planes;i++)
         {
@@ -180,14 +280,15 @@ std::vector< vector<int> > RegionGrow(Pwn_vector points,int num_planes,int* vert
             for(int i=0;i<neighbor[index].size();i++)
             {
                 int neighbor_index=neighbor[index].at(i);
-                //Kernel::Vector_3 normal(points.at(neighbor_index).second.x(),points.at(neighbor_index).second.y(),points.at(neighbor_index).second.z());
-                //double dot_product=mean_normal*normal;
-                if(std::find(region.begin(), region.end(), neighbor_index)==region.end()&&vertex_snapped[neighbor_index]==region_plane)
+                if(in_segment[neighbor_index]==true&&std::find(region.begin(), region.end(), neighbor_index)==region.end()&&
+                        vertex_snapped[neighbor_index]==region_plane)
                 {
-                    region.push_back(neighbor_index);
-                    vertex_region[neighbor_index]=region_index;
-                    unsnapped.erase(std::remove(unsnapped.begin(), unsnapped.end(), neighbor_index), unsnapped.end());
-                   // mean_normal=mean_normal+normal;
+                        region.push_back(neighbor_index);
+                        region_points.push_back(points.at(neighbor_index));
+                        vertex_region[neighbor_index]=region_index;
+                        unsnapped.erase(std::remove(unsnapped.begin(), unsnapped.end(), neighbor_index), unsnapped.end());
+                        in_segment[neighbor_index]=false;
+
                 }
                 else if(vertex_snapped[neighbor_index]!=-1)
                 {
@@ -200,7 +301,7 @@ std::vector< vector<int> > RegionGrow(Pwn_vector points,int num_planes,int* vert
            itr++;
         }
         // Check if all edges are snapped to the same plane, if so, store the plane id
-            region_segments.push_back(region);
+            region_segments.push_back(region_points);
             region_index++;
             bool flag=false;
             for(int i=0;i<num_planes;i++)
@@ -218,9 +319,29 @@ std::vector< vector<int> > RegionGrow(Pwn_vector points,int num_planes,int* vert
                 neighbor_plane.push_back(-1);
             }
     }
+     delete[] in_segment;
+     delete[] segment_neighbor;
     return region_segments;
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 template <typename T>
 void Append(std::vector<T>& a, const std::vector<T>& b)
 {
@@ -343,52 +464,29 @@ void snap_single_point(int planeIndex,Point_with_normal pt,Kernel::Plane_3 plane
      Point_with_normal projected_point;
      projected_point.first=plane.projection(pt.first);
      projected_point.second=pt.second;
-     double dis= (projected_point.first.x()-pt.first.x())*(projected_point.first.x()-pt.first.x())
-             +(projected_point.first.y()-pt.first.y())*(projected_point.first.y()-pt.first.y());
-     if(dis<10){
+
          string key=gen_key_bucket(pt.first);
          int original_index=out_map[key];
          temp_projected_points[original_index]=projected_point;
          vertex_snapped[original_index]=planeIndex;
-     }
 }
-void snap_points(int planeIndex,const Kernel::Plane_3 plane,Pwn_vector plane_points,Point_with_normal* temp_projected_points,int* vertex_snapped,std::vector<vec3>& plane_vertices,map<string,int> out_map,double threshold=1)
+void snap_points(int planeIndex,const Kernel::Plane_3 plane,Pwn_vector plane_points,Point_with_normal* temp_projected_points,int* vertex_snapped,std::vector<vec3>& plane_vertices,map<string,int> out_map)
 {
     int point_index=0;
-    //std::cout<<"Plane: "<<count<<endl;
     double min3d_x,min3d_y,min3d_z;
-    double max3d_x,max3d_y,max3d_z;
-       min3d_x=min3d_y=min3d_z=max_num;
-       max3d_x=max3d_y=max3d_z=min_num;
-       // Using Shape_base::info() for printing
-       // Sums distances of points to detected shapes.
-       FT sum_distances = 0;
-       // Iterates through point indices assigned to each detected shape.
+        double max3d_x,max3d_y,max3d_z;
+           min3d_x=min3d_y=min3d_z=max_num;
+           max3d_x=max3d_y=max3d_z=min_num;
          while (point_index!= plane_points.size()) {
-          // Retrieves point
+
           const Point_with_normal &p = plane_points.at( point_index);
-          // Adds Euclidean distance between point and shape.
-          //sum_distances += CGAL::sqrt((*it)->squared_distance(p.first));
-          // Proceeds with next point.
-          // Project the points to the corresponding planes.
-              // Plane shape can also be converted to Kernel::Plane_3
               Point_with_normal projected_point;
               projected_point.first=plane.projection(p.first);
               projected_point.second=p.second;
-              double dis= (projected_point.first.x()-p.first.x())*(projected_point.first.x()-p.first.x())
-                      +(projected_point.first.y()-p.first.y())*(projected_point.first.y()-p.first.y())
-                      +(projected_point.first.z()-p.first.z())*(projected_point.first.z()-p.first.z());
-              dis=sqrt(dis);
-              if(dis<threshold){
                   string key=gen_key_bucket(p.first);
                   int original_index=out_map[key];
                   temp_projected_points[original_index]=projected_point;
                   vertex_snapped[original_index]=planeIndex;
-              }
-              else{
-                  point_index++;
-                  continue;
-              }
               //find bounding box of the plane
               if(projected_point.first.x()<min3d_x)
               {
@@ -438,29 +536,62 @@ Pwn_vector getPointVector(Pwn_vector original_points,vector<int> region_segment)
     return points;
 }
 
-int ArrangePlanes(Efficient_ransac::Shape_range shapes,Pwn_vector points ,std::vector<Kernel::Plane_3> &planes,std::vector< Pwn_vector > &planes_points)
+int ArrangePlanes(Efficient_ransac::Shape_range shapes,Pwn_vector points ,std::vector<Kernel::Plane_3> &planes,std::vector< Pwn_vector > &planes_points,vector<Plane*> &mainplanes,bool localfitting=false)
 {
     Efficient_ransac::Shape_range::iterator it = shapes.begin();
     int plane_num=0;
+    bool valid=false;
     while(it!=shapes.end())
     {
+         valid=false;
          std::cout << (*it)->info()<<endl;
          boost::shared_ptr<Efficient_ransac::Shape> shape = *it;
          vector< Point_with_normal> plane_points;
          std::vector<std::size_t>::const_iterator index_it = (*it)->indices_of_assigned_points().begin();
          if(Plane* plane = dynamic_cast<Plane*>(it->get()))
          {
-             while(index_it !=(*it)->indices_of_assigned_points().end())
+             if(localfitting==false)
              {
-                 const Point_with_normal &p = *(points.begin() + (*index_it));
-                 plane_points.push_back(p);
-                 index_it++;
+                 Kernel::Vector_3 normal1 = plane->plane_normal();
+                 Kernel::Vector_3 normal2(0,0,1);
+                 if(normal1*normal2<=0.1||normal1*normal2>=0.95)
+                 {
+                        mainplanes.push_back(plane);
+                 }
+                 valid=true;
              }
-             Kernel::Plane_3 plane3d=static_cast<Kernel::Plane_3>(*plane);
-             planes.push_back(plane3d);
-             plane_num++;
+             else
+             {
+                 for(int m=0;m<mainplanes.size();m++)
+                 {
+                      Kernel::Vector_3 normal1 = mainplanes.at(m)->plane_normal();
+                      Kernel::Vector_3 normal2 = plane->plane_normal();
+                      if(normal1*normal2>=0.9||normal1*normal2<=0.1)
+                      {
+                           valid=true;
+                      }
+                 }
+             }
+
+            if(valid)
+            {
+                while(index_it !=(*it)->indices_of_assigned_points().end())
+                {
+                    const Point_with_normal &p = *(points.begin() + (*index_it));
+                    plane_points.push_back(p);
+                    index_it++;
+                }
+                Kernel::Plane_3 plane3d=static_cast<Kernel::Plane_3>(*plane);
+                planes.push_back(plane3d);
+                plane_num++;
+
+            }
+
          }
-         planes_points.push_back(plane_points);
+         if(valid)
+         {
+             planes_points.push_back(plane_points);
+         }
          it++;
     }
     return plane_num;
@@ -475,45 +606,24 @@ Pwn_vector getPoints(Pwn_vector points, std::vector< unsigned int > vertexIndice
        int idx1=vertexIndices.at(i)-1;
        int idx2=vertexIndices.at(i+1)-1;
        int idx3=vertexIndices.at(i+2)-1;
-       if(std::find(indices.begin(), indices.end(), idx1)==indices.end())
-       {
            indices.push_back(idx1);
-           result.push_back(points.at(idx1));
-       }
-       if(std::find(indices.begin(), indices.end(), idx2)==indices.end())
-       {
            indices.push_back(idx2);
-           result.push_back(points.at(idx2));
-       }
-       if(std::find(indices.begin(), indices.end(), idx3)==indices.end())
-       {
            indices.push_back(idx3);
-           result.push_back(points.at(idx3));
-       }
-       if(std::find(neighbor[idx1].begin(), neighbor[idx1].end(), idx2)==neighbor[idx1].end())
-       {
-             neighbor[idx1].push_back(idx2);
-       }
-       if(std::find(neighbor[idx1].begin(), neighbor[idx1].end(), idx3)==neighbor[idx1].end())
-       {
-             neighbor[idx1].push_back(idx3);
-       }
-       if(std::find(neighbor[idx2].begin(), neighbor[idx2].end(), idx1)==neighbor[idx2].end())
-       {
-             neighbor[idx2].push_back(idx1);
-       }
-       if(std::find(neighbor[idx2].begin(), neighbor[idx2].end(), idx3)==neighbor[idx2].end())
-       {
-             neighbor[idx2].push_back(idx3);
-       }
-        if(std::find(neighbor[idx3].begin(), neighbor[idx3].end(), idx1)==neighbor[idx3].end())
-        {
-             neighbor[idx3].push_back(idx1);
-        }
-         if(std::find(neighbor[idx3].begin(), neighbor[idx3].end(), idx2)==neighbor[idx3].end())
-        {
-             neighbor[idx3].push_back(idx2);
-        }
+          neighbor[idx1].push_back(idx2);
+          neighbor[idx1].push_back(idx3);
+          neighbor[idx2].push_back(idx1);
+          neighbor[idx2].push_back(idx3);
+          neighbor[idx3].push_back(idx1);
+          neighbor[idx3].push_back(idx2);
+    }
+    sort( indices.begin(), indices.end() );
+    indices.erase(unique( indices.begin(), indices.end() ), indices.end());
+    for(int i=0;i<indices.size();i++)
+    {
+        int idx=indices.at(i);
+        sort( neighbor[idx].begin(), neighbor[idx].end() );
+        neighbor[idx].erase(unique( neighbor[idx].begin(), neighbor[idx].end() ), neighbor[idx].end());
+        result.push_back(points.at(idx));
     }
     return result;
 }
